@@ -72,8 +72,6 @@ class Test {
       const payload = req.body;
       const id = req.params;
 
-      console.log(payload);
-
       const data = await Data.findOne({ where: id });
 
       if (!data) throw "DataNotFound";
