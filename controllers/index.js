@@ -6,9 +6,10 @@ class Test {
   static async getAll(req, res, next) {
     try {
       const data = await sequelize.query(
-        `SELECT "Data"."id", "Data"."productID", "Data"."productName", "Data"."amount", "Data"."customerName", "Data"."status", "Data"."transactionDate", "Data"."createBy", "Data"."createdAt" as "createdOn", "Status"."name" AS "Status.name" FROM "Data" AS "Data" LEFT OUTER JOIN "Statuses" AS "Status" ON "Data"."status" = "Status"."status"`
+        `SELECT d.id, d."productID", d.amount, s."name" status, d."transactionDate", d."createBy", concat(date_part('year', "transactionDate"::date)::text,'-',date_part('month', "transactionDate"::date)::text) period FROM "Data" d JOIN "Statuses" s ON d.status = s.status order by period desc;`
       );
-      res.status(200).json(data);
+
+      res.status(200).json(data[0]);
     } catch (err) {
       next(err);
     }
@@ -17,11 +18,11 @@ class Test {
     try {
       const { id } = req.params;
       const data = await sequelize.query(
-        `SELECT "Data"."id", "Data"."productID", "Data"."productName", "Data"."amount", "Data"."customerName", "Data"."status", "Data"."transactionDate", "Data"."createBy", "Data"."createdAt" as "createdOn", "Status"."name" AS "Status.name" FROM "Data" AS "Data" LEFT OUTER JOIN "Statuses" AS "Status" ON "Data"."status" = "Status"."status" WHERE "Data"."id" = ${id}`
+        `SELECT "Data"."id", "Data"."productID", "Data"."productName", "Data"."amount", "Data"."customerName", "Data"."status", "Data"."transactionDate", "Data"."createBy", "Data"."createdAt" as "createdOn", "Status"."name" AS "statusName" FROM "Data" AS "Data" LEFT OUTER JOIN "Statuses" AS "Status" ON "Data"."status" = "Status"."status" WHERE "Data"."id" = ${id}`
       );
       if (!data[0].length) throw "DataNotFound";
 
-      res.status(200).json(data[0]);
+      res.status(200).json(data[0][0]);
     } catch (err) {
       next(err);
     }
@@ -37,15 +38,14 @@ class Test {
         transactionDate = null,
         createBy = null,
       } = req.body;
-
       let errors = {};
 
       if (!productID) errors.productID = "ID Product cannot be empty";
-
       if (!productName) errors.productName = "Product Name cannot be empty";
       if (!amount) errors.amount = "Amount cannot be empty";
       if (!customerName) errors.customerName = "Customer Name cannot be empty";
-      if (!status) errors.status = "Status cannot be empty";
+      // if (status !== 0 || status !== 1)
+      //   errors.status = "Status cannot be empty";
       if (!transactionDate)
         errors.transactionDate = "Transaction Date cannot be empty";
       if (!createBy) errors.createBy = "Create By cannot be empty";
@@ -69,12 +69,21 @@ class Test {
   }
   static async edit(req, res, next) {
     try {
-      const payload = req.body;
+      let payload = req.body;
       const id = req.params;
 
       const data = await Data.findOne({ where: id });
 
       if (!data) throw "DataNotFound";
+
+      if (payload.transactionDate) {
+        let time = new Date(payload.transactionDate).toTimeString().split(" ");
+        let day = new Date(payload.transactionDate).toISOString().split("T");
+        payload = {
+          ...payload,
+          transactionDate: `${day[0]} ${time[0]}`,
+        };
+      }
 
       const response = await Data.update(
         { ...payload },
